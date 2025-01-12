@@ -3,7 +3,6 @@ import math
 import time
 from multiprocessing import Pool, cpu_count, current_process
 
-# Memoization dictionaries
 memo = {}
 index_memo = {}
 
@@ -39,11 +38,12 @@ def log_append(data):
         file1.write(data + "\n")
 
 
-def check_permutation(p, n, total_p, p_count):
+def check_permutation(args):
+    p, n, total_p, p_count = args
     if (p_count % 100000) == 0:  # Print every 100,000 permutations verified
         worker_id = current_process().name
         print(
-            f"Verifying Permutation #{p_count} of {total_p} for n={n}... [{str(worker_id)[16:]}]"
+            f"Verifying Permutation #{p_count} of {total_p} for n={n} ... [{str(worker_id)[16:]}]"
         )
 
     row_indices, col_indices = memoized_indices(n)
@@ -67,18 +67,18 @@ def find_grids_n(n):
 
     valid_permutations = []
 
+    def permutation_generator():
+        for i, p in enumerate(itertools.permutations(possible_vals)):
+            yield (p, n, total_p, p_count + i)
+
     with Pool(cpu_count()) as pool:
-        results = pool.starmap(
-            check_permutation,
-            [
-                (p, n, total_p, p_count + i)
-                for i, p in enumerate(itertools.permutations(possible_vals))
-            ],
+        results = pool.imap_unordered(
+            check_permutation, permutation_generator(), chunksize=1000
         )
 
-    for result in results:
-        if result:
-            valid_permutations.append(result)
+        for result in results:
+            if result:
+                valid_permutations.append(result)
 
     for valid_permutation in valid_permutations:
         log_append(valid_permutation)
@@ -86,10 +86,9 @@ def find_grids_n(n):
     log_append("\nExecution Time: " + str(format_time(time.time() - n_start_time)))
     log_append("\n---\n")
     print(
-        "\nFinished executing for: "
-        + str(n)
-        + ", Execution Time: "
-        + str(format_time(time.time() - n_start_time)),
+        "Finished executing for:",
+        n,
+        ", Execution Time: " + str(format_time(time.time() - n_start_time)),
     )
 
 
@@ -127,8 +126,7 @@ if __name__ == "__main__":
                 print("\nExecution interrupted by user.")
 
         print(
-            "\n\nTotal Execution Time: "
-            + str(format_time(time.time() - main_start_time))
+            "Total Execution Time: " + str(format_time(time.time() - main_start_time))
         )
 
     except ValueError:
