@@ -40,7 +40,7 @@ def log_append(data):
 
 
 def check_permutation(p, n, total_p, p_count):
-    if (p_count % 5000) == 0:  # Print every 5000 permutations verified
+    if (p_count % 100000) == 0:  # Print every 100,000 permutations verified
         worker_id = current_process().name
         print(
             f"Verifying Permutation #{p_count} of {total_p} for n={n}... [{str(worker_id)[16:]}]"
