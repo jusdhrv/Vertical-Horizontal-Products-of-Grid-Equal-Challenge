@@ -43,7 +43,7 @@ def check_permutation(args):
     if (p_count % 100000) == 0:  # Print every 100,000 permutations verified
         worker_id = current_process().name
         print(
-            f"|  Verifying Permutation #{p_count} of {total_p} for n={n} ... [{str(worker_id)[16:]}]"
+            f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}]"
         )
 
     row_indices, col_indices = memoized_indices(n)
