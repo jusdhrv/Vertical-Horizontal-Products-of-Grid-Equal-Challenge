@@ -1,7 +1,7 @@
 import itertools
 import math
 import time
-from multiprocessing import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, current_process
 
 # Memoization dictionaries
 memo = {}
@@ -39,7 +39,13 @@ def log_append(data):
         file1.write(data + "\n")
 
 
-def check_permutation(p, n):
+def check_permutation(p, n, total_p, p_count):
+    if (p_count % 5000) == 0:  # Print every 5000 permutations verified
+        worker_id = current_process().name
+        print(
+            f"Verifying Permutation #{p_count} of {total_p} for n={n}... [{str(worker_id)[16:]}]"
+        )
+
     row_indices, col_indices = memoized_indices(n)
     h_product = [memoized_list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [memoized_list_multiple([p[idx] for idx in col]) for col in col_indices]
@@ -63,7 +69,11 @@ def find_grids_n(n):
 
     with Pool(cpu_count()) as pool:
         results = pool.starmap(
-            check_permutation, [(p, n) for p in itertools.permutations(possible_vals)]
+            check_permutation,
+            [
+                (p, n, total_p, p_count + i)
+                for i, p in enumerate(itertools.permutations(possible_vals))
+            ],
         )
 
     for result in results:
@@ -76,9 +86,10 @@ def find_grids_n(n):
     log_append("\nExecution Time: " + str(format_time(time.time() - n_start_time)))
     log_append("\n---\n")
     print(
-        "Finished executing for:",
-        n,
-        ", Execution Time: " + str(format_time(time.time() - n_start_time)),
+        "\nFinished executing for: "
+        + str(n)
+        + ", Execution Time: "
+        + str(format_time(time.time() - n_start_time)),
     )
 
 
@@ -116,7 +127,8 @@ if __name__ == "__main__":
                 print("\nExecution interrupted by user.")
 
         print(
-            "Total Execution Time: " + str(format_time(time.time() - main_start_time))
+            "\n\nTotal Execution Time: "
+            + str(format_time(time.time() - main_start_time))
         )
 
     except ValueError:
