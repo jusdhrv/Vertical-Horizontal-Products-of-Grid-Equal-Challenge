@@ -43,7 +43,7 @@ def check_permutation(args):
     if (p_count % 100000) == 0:  # Print every 100,000 permutations verified
         worker_id = current_process().name
         print(
-            f"Verifying Permutation #{p_count} of {total_p} for n={n} ... [{str(worker_id)[16:]}]"
+            f"|  Verifying Permutation #{p_count} of {total_p} for n={n} ... [{str(worker_id)[16:]}]"
         )
 
     row_indices, col_indices = memoized_indices(n)
@@ -59,6 +59,8 @@ def find_grids_n(n):
     log_append("For, n = " + str(n))
     possible_vals = list(range(1, n * n + 1))
 
+    print("\nStart execution for: " + str(n))
+    print("Possible values of the grid cells are: " + str(possible_vals) + "\n")
     log_append("Possible values of the grid cells are: " + str(possible_vals) + "\n")
     n_start_time = time.time()
 
@@ -80,16 +82,19 @@ def find_grids_n(n):
             if result:
                 valid_permutations.append(result)
 
-    for valid_permutation in valid_permutations:
-        log_append(valid_permutation)
+    # Batch log entries to reduce I/O overhead
+    if valid_permutations:
+        log_append("\n".join(valid_permutations))
 
+    print(
+        "\nFinished executing for: "
+        + str(n)
+        + ", Execution Time: "
+        + str(format_time(time.time() - n_start_time))
+        + "\n"
+    )
     log_append("\nExecution Time: " + str(format_time(time.time() - n_start_time)))
     log_append("\n---\n")
-    print(
-        "Finished executing for:",
-        n,
-        ", Execution Time: " + str(format_time(time.time() - n_start_time)),
-    )
 
 
 def format_time(seconds):
@@ -126,7 +131,8 @@ if __name__ == "__main__":
                 print("\nExecution interrupted by user.")
 
         print(
-            "Total Execution Time: " + str(format_time(time.time() - main_start_time))
+            "\n\nExecution Completed...\nTotal Execution Time: "
+            + str(format_time(time.time() - main_start_time))
         )
 
     except ValueError:
