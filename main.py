@@ -38,7 +38,7 @@ def memoized_indices(n):
 
 
 def log_append(data):
-    with open("logs.txt", "a") as file1:
+    with open("Data/logs.txt", "a") as file1:
         file1.write(data + "\n")
 
 
@@ -218,14 +218,14 @@ def format_time(seconds):
 
 
 def save_memoized_data():
-    with open("memo_data.pkl", "wb") as f:
+    with open("Data/memo_data.pkl", "wb") as f:
         pickle.dump((memo, index_memo, dp_memo, processed_permutations), f)
 
 
 def load_memoized_data():
     global memo, index_memo, dp_memo, processed_permutations
     try:
-        with open("memo_data.pkl", "rb") as f:
+        with open("Data/memo_data.pkl", "rb") as f:
             memo, index_memo, dp_memo, processed_permutations = pickle.load(f)
     except FileNotFoundError:
         pass
