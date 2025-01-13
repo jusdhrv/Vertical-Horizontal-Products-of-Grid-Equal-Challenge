@@ -78,6 +78,46 @@ def dp_product(indices, p):
     return dp_memo[key]
 
 
+def is_prime(num):
+    if num <= 1:
+        return False
+    if num <= 3:
+        return True
+    if num % 2 == 0 or num % 3 == 0:
+        return False
+    i = 5
+    while i * i <= num:
+        if num % i == 0 or num % (i + 2) == 0:
+            return False
+        i += 6
+    return True
+
+
+def primes_with_odd_powers(n):
+    primes = [i for i in range(2, n * n + 1) if is_prime(i)]
+    odd_power_primes = [p for p in primes if p % 2 != 0]
+    return odd_power_primes
+
+
+def check_odd_power_prime_placement(p, n):
+    odd_power_primes = primes_with_odd_powers(n)
+    row_indices, col_indices = memoized_indices(n)
+    for prime in odd_power_primes:
+        positions = [i for i, x in enumerate(p) if x == prime]
+        for pos in positions:
+            row = pos // n
+            col = pos % n
+            row_product = memoized_list_multiple(
+                [p[idx] for idx in row_indices[row] if idx != pos]
+            )
+            col_product = memoized_list_multiple(
+                [p[idx] for idx in col_indices[col] if idx != pos]
+            )
+            if row_product != col_product:
+                return False
+    return True
+
+
 def check_permutation(args):
     p, n, total_p, p_count = args
     if (p_count % 100000) == 0:
@@ -85,6 +125,9 @@ def check_permutation(args):
         print(
             f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}]"
         )
+
+    if not check_odd_power_prime_placement(p, n):
+        return None
 
     row_indices, col_indices = memoized_indices(n)
     h_product = [dp_product(row, p) for row in row_indices]
