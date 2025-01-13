@@ -151,6 +151,7 @@ def prune_permutations(permutations, n):
 
 
 def heuristic_permutation_generator(possible_vals, n):
+    odd_power_primes = primes_with_odd_powers(n)
     for p in itertools.permutations(possible_vals):
         canonical_p = canonical_form(p, n)
         if canonical_p not in processed_permutations:
