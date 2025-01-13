@@ -1,13 +1,17 @@
 import os
 
+
 def clear_logs():
-    logs_path = "Data/logs.txt"
-    if os.path.exists(logs_path):
-        with open(logs_path, "w") as file:
-            file.truncate(0)
-        print(f"Cleared contents of {logs_path}")
+    existing_logs = [f for f in os.listdir("Data") if f.endswith("-logs.txt")]
+    if existing_logs:
+        for log_file in existing_logs:
+            log_file_path = f"Data/{log_file}"
+            os.remove(log_file_path)
+            print(f"Deleted {log_file_path}")
+        print(f"Cleared contents of logs")
     else:
-        print(f"{logs_path} does not exist")
+        print(f"No logs to delete")
+
 
 def delete_memo_data():
     memo_data_path = "Data/memo_data.pkl"
@@ -15,7 +19,8 @@ def delete_memo_data():
         os.remove(memo_data_path)
         print(f"Deleted {memo_data_path}")
     else:
-        print(f"{memo_data_path} does not exist")
+        print(f"No memos to delete")
+
 
 if __name__ == "__main__":
     clear_logs()

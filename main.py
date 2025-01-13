@@ -4,6 +4,7 @@ import time
 import pickle
 import numpy as np
 from multiprocessing import Pool, cpu_count, current_process
+import os
 
 memo = {}
 index_memo = {}
@@ -37,8 +38,34 @@ def memoized_indices(n):
     return index_memo[n]
 
 
+def get_next_log_file():
+    log_dir = "Data"
+    log_suffix = "-logs.txt"
+    existing_logs = [
+        f
+        for f in os.listdir(log_dir)
+        if f.endswith(log_suffix)
+    ]
+
+    if not existing_logs:
+        return os.path.join(log_dir, f"1{log_suffix}")
+    
+    log_numbers = [int(f[: -len(log_suffix)]) for f in existing_logs]
+    latest_log_number = max(log_numbers, default=0)
+    latest_log_file = os.path.join(log_dir, f"{latest_log_number}{log_suffix}")
+    
+    # Check if the latest log file ends with '&end&'
+    with open(latest_log_file, "r") as file:
+        lines = file.readlines()
+        if lines and lines[-1].strip() == "&end&":
+            next_log_number = latest_log_number + 1
+            return os.path.join(log_dir, f"{next_log_number}{log_suffix}")
+        else:
+            return latest_log_file
+
+
 def log_append(data):
-    with open("Data/logs.txt", "a") as file1:
+    with open(get_next_log_file(), "a") as file1:
         file1.write(data + "\n")
 
 
@@ -119,11 +146,12 @@ def check_odd_power_prime_placement(p, n):
 
 
 def check_permutation(args):
-    p, n, total_p, p_count = args
+    p, n, total_p, p_count, start_time = args
     if (p_count % 100000) == 0:
         worker_id = current_process().name
+        elapsed_time = format_time(time.time() - start_time)
         print(
-            f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}]"
+            f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}] ({elapsed_time})"
         )
 
     if not check_odd_power_prime_placement(p, n):
@@ -193,12 +221,12 @@ def find_grids_n(n):
             canonical_p = canonical_form(p, n)
             if canonical_p not in processed_permutations:
                 processed_permutations.add(canonical_p)
-                yield (p, n, total_p, p_count + i)
+                yield (p, n, total_p, p_count + i, n_start_time)
 
     row_indices, col_indices = memoized_indices(n)
     with Pool(cpu_count()) as pool:
         results = pool.imap_unordered(
-            check_permutation, permutation_generator(), chunksize=1000
+            check_permutation, permutation_generator(), chunksize=10000
         )
 
         for result in results:
@@ -211,6 +239,7 @@ def find_grids_n(n):
     print(
         f"\nFinished executing for: {n}, Execution Time: {format_time(time.time() - n_start_time)}"
     )
+    return False  # No valid permutation found
 
 
 def format_time(seconds):
@@ -262,6 +291,7 @@ if __name__ == "__main__":
                 print("\nExecution interrupted by user.")
 
         print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")
+        log_append("&end&")
 
     except ValueError:
         print("\nInvalid input. Please enter a valid integer.")
