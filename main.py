@@ -1,10 +1,9 @@
-import itertools
-import math
-import time
+from itertools import permutations, chain
+from math import factorial
+from time import time, strftime, gmtime
 import pickle
-import numpy as np
-from multiprocessing import Pool, cpu_count, current_process
 import os
+from multiprocessing import Pool, cpu_count, current_process
 
 memo = {}
 index_memo = {}
@@ -41,19 +40,15 @@ def memoized_indices(n):
 def get_next_log_file():
     log_dir = "Data"
     log_suffix = "-logs.txt"
-    existing_logs = [
-        f
-        for f in os.listdir(log_dir)
-        if f.endswith(log_suffix)
-    ]
+    existing_logs = [f for f in os.listdir(log_dir) if f.endswith(log_suffix)]
 
     if not existing_logs:
         return os.path.join(log_dir, f"1{log_suffix}")
-    
+
     log_numbers = [int(f[: -len(log_suffix)]) for f in existing_logs]
     latest_log_number = max(log_numbers, default=0)
     latest_log_file = os.path.join(log_dir, f"{latest_log_number}{log_suffix}")
-    
+
     # Check if the latest log file ends with '&end&'
     with open(latest_log_file, "r") as file:
         lines = file.readlines()
@@ -65,27 +60,28 @@ def get_next_log_file():
 
 
 def log_append(data):
-    with open(get_next_log_file(), "a") as file1:
+    log_file_path = get_next_log_file()
+    with open(log_file_path, "a") as file1:
         file1.write(data + "\n")
 
 
 def generate_equivalent_permutations(grid, n):
     grids = set()
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
-    grids.add(tuple(itertools.chain(*grid)))
+    grids.add(tuple(chain(*grid)))
     for _ in range(3):
         grid = list(zip(*grid[::-1]))
-        grids.add(tuple(itertools.chain(*grid)))
+        grids.add(tuple(chain(*grid)))
     for g in list(grids):
         grid = [list(g[i : i + n]) for i in range(0, len(g), n)]
         for _ in range(n):
             grid = grid[1:] + grid[:1]
-            grids.add(tuple(itertools.chain(*grid)))
+            grids.add(tuple(chain(*grid)))
         for _ in range(n):
             grid = list(zip(*grid))
             grid = grid[1:] + grid[:1]
             grid = list(zip(*grid))
-            grids.add(tuple(itertools.chain(*grid)))
+            grids.add(tuple(chain(*grid)))
     return grids
 
 
@@ -95,7 +91,7 @@ def canonical_form(grid, n):
     grid = list(zip(*grid))
     grid = sorted(grid)
     grid = list(zip(*grid))
-    return tuple(itertools.chain(*grid))
+    return tuple(chain(*grid))
 
 
 def dp_product(indices, p):
@@ -149,7 +145,7 @@ def check_permutation(args):
     p, n, total_p, p_count, start_time = args
     if (p_count % 100000) == 0:
         worker_id = current_process().name
-        elapsed_time = format_time(time.time() - start_time)
+        elapsed_time = format_time(time() - start_time)
         print(
             f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}] ({elapsed_time})"
         )
@@ -180,7 +176,7 @@ def prune_permutations(permutations, n):
 
 def heuristic_permutation_generator(possible_vals, n):
     odd_power_primes = primes_with_odd_powers(n)
-    for p in itertools.permutations(possible_vals):
+    for p in permutations(possible_vals):
         canonical_p = canonical_form(p, n)
         if canonical_p not in processed_permutations:
             processed_permutations.add(canonical_p)
@@ -209,9 +205,9 @@ def find_grids_n(n):
     possible_vals = list(range(1, n * n + 1))
 
     log_append(f"Possible values of the grid cells are: {possible_vals}\n")
-    n_start_time = time.time()
+    n_start_time = time()
 
-    total_p = math.factorial(n * n)
+    total_p = factorial(n * n)
     p_count = 1
 
     valid_permutations = set()
@@ -234,16 +230,16 @@ def find_grids_n(n):
                 for perm in result:
                     log_append(str(perm))
 
-    log_append(f"\nExecution Time: {format_time(time.time() - n_start_time)}")
+    log_append(f"\nExecution Time: {format_time(time() - n_start_time)}")
     log_append("\n---\n")
     print(
-        f"\nFinished executing for: {n}, Execution Time: {format_time(time.time() - n_start_time)}"
+        f"\nFinished executing for: {n}, Execution Time: {format_time(time() - n_start_time)}"
     )
     return False  # No valid permutation found
 
 
 def format_time(seconds):
-    return time.strftime("%H:%M:%S", time.gmtime(seconds))
+    return strftime("%H:%M:%S", gmtime(seconds))
 
 
 def save_memoized_data():
@@ -268,7 +264,7 @@ if __name__ == "__main__":
             "This programme executes the possible grid finder from 1 up to a maximum 'n' of your choice..."
         )
         n_max = int(input("Enter the value for 'n' to use: "))
-        main_start_time = time.time()
+        main_start_time = time()
 
         if n_max < 0:
             print("\nInvalid value provided. Must be a natural number")
@@ -290,7 +286,7 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 print("\nExecution interrupted by user.")
 
-        print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")
+        print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}")
         log_append("&end&")
 
     except ValueError:
