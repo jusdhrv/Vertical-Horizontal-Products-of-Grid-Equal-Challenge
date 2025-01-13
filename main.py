@@ -1,10 +1,14 @@
 import itertools
 import math
 import time
+import pickle
+import numpy as np
 from multiprocessing import Pool, cpu_count, current_process
 
 memo = {}
 index_memo = {}
+dp_memo = {}
+processed_permutations = set()
 
 
 def list_multiple(lst):
@@ -39,54 +43,52 @@ def log_append(data):
 
 
 def generate_equivalent_permutations(grid, n):
-    # Generate all equivalent permutations by rotating and shifting rows and columns
     grids = set()
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
-
-    # Add original grid
     grids.add(tuple(itertools.chain(*grid)))
-
-    # Add rotated grids
     for _ in range(3):
-        grid = list(zip(*grid[::-1]))  # Rotate 90 degrees
+        grid = list(zip(*grid[::-1]))
         grids.add(tuple(itertools.chain(*grid)))
-
-    # Add row and column shifts
     for g in list(grids):
         grid = [list(g[i : i + n]) for i in range(0, len(g), n)]
         for _ in range(n):
-            grid = grid[1:] + grid[:1]  # Shift rows
+            grid = grid[1:] + grid[:1]
             grids.add(tuple(itertools.chain(*grid)))
         for _ in range(n):
-            grid = list(zip(*grid))  # Transpose to shift columns
+            grid = list(zip(*grid))
             grid = grid[1:] + grid[:1]
-            grid = list(zip(*grid))  # Transpose back
+            grid = list(zip(*grid))
             grids.add(tuple(itertools.chain(*grid)))
-
     return grids
 
 
 def canonical_form(grid, n):
-    # Convert grid to canonical form by sorting rows and columns
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
     grid = sorted(grid)
-    grid = list(zip(*grid))  # Transpose to sort columns
+    grid = list(zip(*grid))
     grid = sorted(grid)
-    grid = list(zip(*grid))  # Transpose back
+    grid = list(zip(*grid))
     return tuple(itertools.chain(*grid))
+
+
+def dp_product(indices, p):
+    key = tuple(indices)
+    if key not in dp_memo:
+        dp_memo[key] = list_multiple([p[idx] for idx in indices])
+    return dp_memo[key]
 
 
 def check_permutation(args):
     p, n, total_p, p_count = args
-    if (p_count % 100000) == 0:  # Print every 100,000 permutations verified
+    if (p_count % 100000) == 0:
         worker_id = current_process().name
         print(
             f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... [{str(worker_id)[16:]}]"
         )
 
     row_indices, col_indices = memoized_indices(n)
-    h_product = [memoized_list_multiple([p[idx] for idx in row]) for row in row_indices]
-    v_product = [memoized_list_multiple([p[idx] for idx in col]) for col in col_indices]
+    h_product = [dp_product(row, p) for row in row_indices]
+    v_product = [dp_product(col, p) for col in col_indices]
 
     if set(h_product) == set(v_product):
         equivalent_permutations = generate_equivalent_permutations(p, n)
@@ -94,11 +96,47 @@ def check_permutation(args):
     return None
 
 
+def prune_permutations(permutations, n):
+    pruned_permutations = []
+    for p in permutations:
+        row_indices, col_indices = memoized_indices(n)
+        h_product = [dp_product(row, p) for row in row_indices]
+        v_product = [dp_product(col, p) for col in col_indices]
+        if set(h_product) == set(v_product):
+            pruned_permutations.append(p)
+    return pruned_permutations
+
+
+def heuristic_permutation_generator(possible_vals, n):
+    for p in itertools.permutations(possible_vals):
+        canonical_p = canonical_form(p, n)
+        if canonical_p not in processed_permutations:
+            processed_permutations.add(canonical_p)
+            yield p
+
+
+def branch_and_bound(p, n, row_indices, col_indices):
+    h_product = [dp_product(row, p) for row in row_indices]
+    v_product = [dp_product(col, p) for col in col_indices]
+    return set(h_product) == set(v_product)
+
+
+def incremental_search(p, n, row_indices, col_indices, depth=0):
+    if depth == n:
+        return branch_and_bound(p, n, row_indices, col_indices)
+    for i in range(depth, n):
+        p[depth], p[i] = p[i], p[depth]
+        if incremental_search(p, n, row_indices, col_indices, depth + 1):
+            return True
+        p[depth], p[i] = p[i], p[depth]
+    return False
+
+
 def find_grids_n(n):
-    log_append("For, n = " + str(n))
+    log_append(f"For, n = {n}")
     possible_vals = list(range(1, n * n + 1))
 
-    log_append("Possible values of the grid cells are: " + str(possible_vals) + "\n")
+    log_append(f"Possible values of the grid cells are: {possible_vals}\n")
     n_start_time = time.time()
 
     total_p = math.factorial(n * n)
@@ -107,12 +145,13 @@ def find_grids_n(n):
     valid_permutations = set()
 
     def permutation_generator():
-        for i, p in enumerate(itertools.permutations(possible_vals)):
+        for i, p in enumerate(heuristic_permutation_generator(possible_vals, n)):
             canonical_p = canonical_form(p, n)
-            if canonical_p not in valid_permutations:
-                valid_permutations.add(canonical_p)
+            if canonical_p not in processed_permutations:
+                processed_permutations.add(canonical_p)
                 yield (p, n, total_p, p_count + i)
 
+    row_indices, col_indices = memoized_indices(n)
     with Pool(cpu_count()) as pool:
         results = pool.imap_unordered(
             check_permutation, permutation_generator(), chunksize=1000
@@ -123,12 +162,10 @@ def find_grids_n(n):
                 for perm in result:
                     log_append(str(perm))
 
-    log_append("\nExecution Time: " + str(format_time(time.time() - n_start_time)))
+    log_append(f"\nExecution Time: {format_time(time.time() - n_start_time)}")
     log_append("\n---\n")
     print(
-        "\nFinished executing for:",
-        n,
-        ", Execution Time: " + str(format_time(time.time() - n_start_time)),
+        f"\nFinished executing for: {n}, Execution Time: {format_time(time.time() - n_start_time)}"
     )
 
 
@@ -136,9 +173,24 @@ def format_time(seconds):
     return time.strftime("%H:%M:%S", time.gmtime(seconds))
 
 
+def save_memoized_data():
+    with open("memo_data.pkl", "wb") as f:
+        pickle.dump((memo, index_memo, dp_memo, processed_permutations), f)
+
+
+def load_memoized_data():
+    global memo, index_memo, dp_memo, processed_permutations
+    try:
+        with open("memo_data.pkl", "rb") as f:
+            memo, index_memo, dp_memo, processed_permutations = pickle.load(f)
+    except FileNotFoundError:
+        pass
+
+
 # Example usage
 if __name__ == "__main__":
     try:
+        load_memoized_data()
         print(
             "This programme executes the possible grid finder from 1 up to a maximum 'n' of your choice..."
         )
@@ -165,10 +217,9 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 print("\nExecution interrupted by user.")
 
-        print(
-            "\n\nTotal Execution Time: "
-            + str(format_time(time.time() - main_start_time))
-        )
+        print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")
 
     except ValueError:
         print("\nInvalid input. Please enter a valid integer.")
+    finally:
+        save_memoized_data()
