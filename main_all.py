@@ -89,7 +89,7 @@ def write_worker_file(worker_id, perms, chunk_size, n):
 def split_permutations_to_files(possible_vals, num_workers, n):
     perms = permutations(possible_vals)
     total_perms = factorial(len(possible_vals))
-    chunk_size = total_perms // num_workers
+    chunk_size = max(total_perms // num_workers, 1)  # Ensure chunk_size is at least 1
 
     print(f"\nSetting up worker files for n={n}...")
     makedirs("Data/Workers", exist_ok=True)
