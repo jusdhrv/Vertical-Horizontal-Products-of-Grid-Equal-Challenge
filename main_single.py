@@ -52,9 +52,9 @@ def log_append(data):
 
 def canonical_form(grid, n):
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
-    grid is sorted(grid)
+    grid = sorted(grid)
     grid = list(zip(*grid))
-    grid is sorted(grid)
+    grid = sorted(grid)
     grid = list(zip(*grid))
     return tuple(chain(*grid))
 
@@ -73,7 +73,7 @@ def check_permutation(args):
     return None
 
 
-def write_worker_file(worker_id, perms, chunk_size, n):
+def write_worker_file(worker_id, possible_vals, chunk_size, n):
     worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
     if path.exists(worker_file):
         with open(worker_file, "r") as f:
@@ -82,6 +82,7 @@ def write_worker_file(worker_id, perms, chunk_size, n):
                 print(f"| Worker {worker_id} file for n={n} already set up.")
                 return
 
+    perms = permutations(possible_vals)
     with open(worker_file, "w") as f:
         for perm in islice(perms, chunk_size):
             f.write(",".join(map(str, perm)) + "\n")
@@ -90,7 +91,6 @@ def write_worker_file(worker_id, perms, chunk_size, n):
 
 
 def split_permutations_to_files(possible_vals, num_workers, n):
-    perms = permutations(possible_vals)
     total_perms = factorial(len(possible_vals))
     chunk_size = max(total_perms // num_workers, 1)  # Ensure chunk_size is at least 1
 
@@ -98,7 +98,8 @@ def split_permutations_to_files(possible_vals, num_workers, n):
     makedirs("Data/Workers", exist_ok=True)
     with Pool(num_workers) as pool:
         pool.starmap(
-            write_worker_file, [(i, perms, chunk_size, n) for i in range(num_workers)]
+            write_worker_file,
+            [(i, possible_vals, chunk_size, n) for i in range(num_workers)],
         )
 
 
