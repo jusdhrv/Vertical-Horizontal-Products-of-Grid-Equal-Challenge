@@ -1,7 +1,7 @@
 from itertools import permutations, chain, islice
 from time import time, strftime, gmtime
 from os import listdir, path, remove, makedirs
-from multiprocessing import Pool, cpu_count, Manager
+from multiprocessing import Pool, cpu_count, Manager, Value
 from math import factorial
 
 
@@ -52,20 +52,23 @@ def log_append(data):
 
 def canonical_form(grid, n):
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
-    grid = sorted(grid)
+    grid is sorted(grid)
     grid = list(zip(*grid))
-    grid = sorted(grid)
+    grid is sorted(grid)
     grid = list(zip(*grid))
     return tuple(chain(*grid))
 
 
 def check_permutation(args):
-    p, n, row_indices, col_indices, worker_id = args
+    p, n, row_indices, col_indices, worker_id, found_solution = args
+    if found_solution.value:
+        return None
     h_product = [list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [list_multiple([p[idx] for idx in col]) for col in col_indices]
 
     if set(h_product) == set(v_product):
         canonical_p = canonical_form(p, n)
+        found_solution.value = True
         return canonical_p, h_product, v_product, worker_id
     return None
 
@@ -99,7 +102,9 @@ def split_permutations_to_files(possible_vals, num_workers, n):
         )
 
 
-def process_permutations(n, possible_vals, row_indices, col_indices, log_queue):
+def process_permutations(
+    n, possible_vals, row_indices, col_indices, log_queue, found_solution
+):
     def generate_permutations():
         for perm in permutations(possible_vals):
             yield perm
@@ -108,7 +113,7 @@ def process_permutations(n, possible_vals, row_indices, col_indices, log_queue):
         results = pool.imap_unordered(
             check_permutation,
             (
-                (perm, n, row_indices, col_indices, worker_id)
+                (perm, n, row_indices, col_indices, worker_id, found_solution)
                 for worker_id in range(cpu_count())
                 for perm in generate_permutations()
             ),
@@ -120,6 +125,8 @@ def process_permutations(n, possible_vals, row_indices, col_indices, log_queue):
                 canonical_p, h_product, v_product, worker_id = result
                 log_queue.put(f"{canonical_p} {h_product} {v_product}")
                 delete_evaluated_permutation(n, worker_id, canonical_p)
+                if found_solution.value:
+                    break
 
 
 def delete_evaluated_permutation(n, worker_id, perm):
@@ -151,10 +158,13 @@ def find_grids_n(n):
 
     manager = Manager()
     log_queue = manager.Queue()
+    found_solution = manager.Value("i", False)
 
     log_process = Pool(1, log_worker, (log_queue,))
     split_permutations_to_files(possible_vals, cpu_count(), n)
-    process_permutations(n, possible_vals, row_indices, col_indices, log_queue)
+    process_permutations(
+        n, possible_vals, row_indices, col_indices, log_queue, found_solution
+    )
 
     log_queue.put("DONE")
     log_process.close()

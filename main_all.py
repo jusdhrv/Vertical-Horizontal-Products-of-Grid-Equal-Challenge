@@ -1,8 +1,8 @@
 from itertools import permutations, chain, islice
-from math import factorial
 from time import time, strftime, gmtime
-from os import listdir, path
-from multiprocessing import Pool, cpu_count
+from os import listdir, path, remove, makedirs
+from multiprocessing import Pool, cpu_count, Manager
+from math import factorial
 
 
 def list_multiple(lst):
@@ -59,63 +59,112 @@ def canonical_form(grid, n):
     return tuple(chain(*grid))
 
 
-def split_permutations(possible_vals, num_workers):
-    perms = list(permutations(possible_vals))
-    total_perms = len(perms)
-    if total_perms == 1:
-        return [perms]  # Assign the single permutation to one worker
-    chunk_size = total_perms // num_workers
-    chunks = [perms[i * chunk_size : (i + 1) * chunk_size] for i in range(num_workers)]
-    return chunks
-
-
 def check_permutation(args):
-    p, n, row_indices, col_indices = args
+    p, n, row_indices, col_indices, worker_id = args
     h_product = [list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [list_multiple([p[idx] for idx in col]) for col in col_indices]
 
     if set(h_product) == set(v_product):
         canonical_p = canonical_form(p, n)
-        return canonical_p, h_product, v_product
+        return canonical_p, h_product, v_product, worker_id
     return None
+
+
+def write_worker_file(worker_id, perms, chunk_size, n):
+    worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
+    if path.exists(worker_file):
+        with open(worker_file, "r") as f:
+            lines = f.readlines()
+            if lines and lines[-1].strip() == "&end&":
+                print(f"| Worker {worker_id} file for n={n} already set up.")
+                return
+
+    with open(worker_file, "w") as f:
+        for perm in islice(perms, chunk_size):
+            f.write(",".join(map(str, perm)) + "\n")
+        f.write("&end&\n")
+    print(f"| Worker {worker_id} file setup complete for n={n}.")
+
+
+def split_permutations_to_files(possible_vals, num_workers, n):
+    perms = permutations(possible_vals)
+    total_perms = factorial(len(possible_vals))
+    chunk_size = total_perms // num_workers
+
+    print(f"\nSetting up worker files for n={n}...")
+    makedirs("Data/Workers", exist_ok=True)
+    with Pool(num_workers) as pool:
+        pool.starmap(
+            write_worker_file, [(i, perms, chunk_size, n) for i in range(num_workers)]
+        )
+
+
+def process_permutations(n, possible_vals, row_indices, col_indices, log_queue):
+    def generate_permutations():
+        for perm in permutations(possible_vals):
+            yield perm
+
+    with Pool(cpu_count()) as pool:
+        results = pool.imap_unordered(
+            check_permutation,
+            (
+                (perm, n, row_indices, col_indices, worker_id)
+                for worker_id in range(cpu_count())
+                for perm in generate_permutations()
+            ),
+            chunksize=1000,
+        )
+
+        for result in results:
+            if result:
+                canonical_p, h_product, v_product, worker_id = result
+                log_queue.put(f"{canonical_p} {h_product} {v_product}")
+                delete_evaluated_permutation(n, worker_id, canonical_p)
+
+
+def delete_evaluated_permutation(n, worker_id, perm):
+    worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
+    with open(worker_file, "r") as f:
+        lines = f.readlines()
+    with open(worker_file, "w") as f:
+        f.writelines(line for line in lines if line.strip() != ",".join(map(str, perm)))
+
+
+def log_worker(log_queue):
+    while True:
+        data = log_queue.get()
+        if data == "DONE":
+            break
+        log_append(data)
 
 
 def find_grids_n(n):
     log_append(f"For, n = {n}")
+    print(f"\nBegin execution for n = {n}")
     possible_vals = list(range(1, n * n + 1))
 
-    log_append(f"Possible values of the grid cells are: {possible_vals}\n")
+    log_append(f"| Possible values of the grid cells are: {possible_vals}\n")
+    print(f"| Possible values of the grid cells are: {possible_vals}")
     n_start_time = time()
 
     row_indices, col_indices = memoized_indices(n)
 
-    num_workers = cpu_count()
-    chunks = split_permutations(possible_vals, num_workers)
+    manager = Manager()
+    log_queue = manager.Queue()
 
-    found_valid_permutation = False
+    log_process = Pool(1, log_worker, (log_queue,))
+    split_permutations_to_files(possible_vals, cpu_count(), n)
+    process_permutations(n, possible_vals, row_indices, col_indices, log_queue)
 
-    with Pool(num_workers) as pool:
-        results = pool.imap_unordered(
-            check_permutation,
-            ((p, n, row_indices, col_indices) for chunk in chunks for p in chunk),
-            chunksize=1000,
-        )
+    log_queue.put("DONE")
+    log_process.close()
+    log_process.join()
 
-        log_data = []
-        for result in results:
-            if result:
-                perm, h_product, v_product = result
-                log_data.append(f"{perm} {h_product} {v_product}")
-                found_valid_permutation = True
-                if len(log_data) >= 1000:
-                    log_append("\n".join(log_data))
-                    log_data = []
-
-        if log_data:
-            log_append("\n".join(log_data))
-
-    if not found_valid_permutation:
-        log_append("No valid permutations found")
+    # Delete worker files after processing
+    for worker_id in range(cpu_count()):
+        worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
+        if path.exists(worker_file):
+            remove(worker_file)
 
     log_append(f"\nExecution Time: {format_time(time() - n_start_time)}")
     log_append("\n---\n")
