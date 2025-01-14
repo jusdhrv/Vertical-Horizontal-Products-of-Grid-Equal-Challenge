@@ -59,31 +59,25 @@ def canonical_form(grid, n):
     return tuple(chain(*grid))
 
 
-def split_permutations(possible_vals, n, num_workers):
-    perms = permutations(possible_vals)
-    total_perms = factorial(len(possible_vals))
+def split_permutations(possible_vals, num_workers):
+    perms = list(permutations(possible_vals))
+    total_perms = len(perms)
+    if total_perms == 1:
+        return [perms]  # Assign the single permutation to one worker
     chunk_size = total_perms // num_workers
-    chunks = [
-        list(islice(perms, i * chunk_size, (i + 1) * chunk_size))
-        for i in range(num_workers)
-    ]
+    chunks = [perms[i * chunk_size : (i + 1) * chunk_size] for i in range(num_workers)]
     return chunks
 
 
 def check_permutation(args):
-    p, n, row_indices, col_indices, total_p, p_count, start_time = args
-    if (p_count % 100000) == 0:
-        elapsed_time = format_time(time() - start_time)
-        print(
-            f"|  Permutation #{p_count} of {total_p} ({round((p_count/total_p)*100, 2)} %) for n={n} ... ({elapsed_time})"
-        )
+    p, n, row_indices, col_indices = args
     h_product = [list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [list_multiple([p[idx] for idx in col]) for col in col_indices]
 
     if set(h_product) == set(v_product):
         canonical_p = canonical_form(p, n)
-        return [(canonical_p, h_product, v_product)]
-    return []
+        return canonical_p, h_product, v_product
+    return None
 
 
 def find_grids_n(n):
@@ -93,35 +87,29 @@ def find_grids_n(n):
     log_append(f"Possible values of the grid cells are: {possible_vals}\n")
     n_start_time = time()
 
-    total_p = factorial(n * n)
-    p_count = 1
-
     row_indices, col_indices = memoized_indices(n)
 
     num_workers = cpu_count()
-    chunks = split_permutations(possible_vals, n, num_workers)
+    chunks = split_permutations(possible_vals, num_workers)
+
+    found_valid_permutation = False
 
     with Pool(num_workers) as pool:
         results = pool.imap_unordered(
             check_permutation,
-            (
-                (p, n, row_indices, col_indices, total_p, p_count, n_start_time)
-                for chunk in chunks
-                for p in chunk
-            ),
+            ((p, n, row_indices, col_indices) for chunk in chunks for p in chunk),
             chunksize=1000,
         )
 
-        log_data = []
         for result in results:
-            for perm, h_product, v_product in result:
-                log_data.append(f"{perm} {h_product} {v_product}")
-                if len(log_data) >= 1000:
-                    log_append("\n".join(log_data))
-                    log_data = []
+            if result:
+                perm, h_product, v_product = result
+                log_append(f"{perm} {h_product} {v_product}")
+                found_valid_permutation = True
+                break
 
-        if log_data:
-            log_append("\n".join(log_data))
+    if not found_valid_permutation:
+        log_append("No valid permutations found")
 
     log_append(f"\nExecution Time: {format_time(time() - n_start_time)}")
     log_append("\n---\n")
@@ -134,6 +122,7 @@ def format_time(seconds):
     return strftime("%H:%M:%S", gmtime(seconds))
 
 
+# Example usage
 if __name__ == "__main__":
     print(
         "This programme executes the possible grid finder from 1 up to a maximum 'n' of your choice..."
@@ -160,8 +149,6 @@ if __name__ == "__main__":
                 find_grids_n(grid_size)
         except KeyboardInterrupt:
             print("\nExecution interrupted by user.")
-
-    # find_grids_n(3)
 
     print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}")
     log_append("&end&")
