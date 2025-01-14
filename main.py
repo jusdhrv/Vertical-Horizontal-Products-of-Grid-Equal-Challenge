@@ -1,14 +1,16 @@
-from itertools import permutations, chain
+from itertools import permutations, chain, islice
 from math import factorial
 from time import time, strftime, gmtime
 from os import listdir, path
 from multiprocessing import Pool, cpu_count
+
 
 def list_multiple(lst):
     product = 1
     for i in lst:
         product *= i
     return product
+
 
 def memoized_indices(n):
     start_indices = [j * n for j in range(n)]
@@ -18,6 +20,7 @@ def memoized_indices(n):
     ]
     col_indices = [[l + m * n for m in range(n)] for l in range(n)]
     return row_indices, col_indices
+
 
 def get_next_log_file():
     log_dir = "Data"
@@ -40,10 +43,12 @@ def get_next_log_file():
         else:
             return latest_log_file
 
+
 def log_append(data):
     log_file_path = get_next_log_file()
     with open(log_file_path, "a") as file1:
         file1.write(data + "\n")
+
 
 def canonical_form(grid, n):
     grid = [grid[i : i + n] for i in range(0, len(grid), n)]
@@ -53,9 +58,17 @@ def canonical_form(grid, n):
     grid = list(zip(*grid))
     return tuple(chain(*grid))
 
-def heuristic_permutation_generator(possible_vals, n):
-    for p in permutations(possible_vals):
-        yield p
+
+def split_permutations(possible_vals, n, num_workers):
+    perms = permutations(possible_vals)
+    total_perms = factorial(len(possible_vals))
+    chunk_size = total_perms // num_workers
+    chunks = [
+        list(islice(perms, i * chunk_size, (i + 1) * chunk_size))
+        for i in range(num_workers)
+    ]
+    return chunks
+
 
 def check_permutation(args):
     p, n, row_indices, col_indices, total_p, p_count, start_time = args
@@ -72,6 +85,7 @@ def check_permutation(args):
         return [(canonical_p, h_product, v_product)]
     return []
 
+
 def find_grids_n(n):
     log_append(f"For, n = {n}")
     possible_vals = list(range(1, n * n + 1))
@@ -84,12 +98,16 @@ def find_grids_n(n):
 
     row_indices, col_indices = memoized_indices(n)
 
-    with Pool(cpu_count()) as pool:
+    num_workers = cpu_count()
+    chunks = split_permutations(possible_vals, n, num_workers)
+
+    with Pool(num_workers) as pool:
         results = pool.imap_unordered(
             check_permutation,
             (
                 (p, n, row_indices, col_indices, total_p, p_count, n_start_time)
-                for p in heuristic_permutation_generator(possible_vals, n)
+                for chunk in chunks
+                for p in chunk
             ),
             chunksize=1000,
         )
@@ -110,6 +128,7 @@ def find_grids_n(n):
     print(
         f"\nFinished executing for: {n}, Execution Time: {format_time(time() - n_start_time)}"
     )
+
 
 def format_time(seconds):
     return strftime("%H:%M:%S", gmtime(seconds))
@@ -141,6 +160,8 @@ if __name__ == "__main__":
                 find_grids_n(grid_size)
         except KeyboardInterrupt:
             print("\nExecution interrupted by user.")
+
+    # find_grids_n(3)
 
     print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}")
     log_append("&end&")
