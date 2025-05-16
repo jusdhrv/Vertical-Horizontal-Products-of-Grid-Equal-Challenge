@@ -48,6 +48,7 @@ def execution(n):
             + str(n)
             + ": "
             + str(len(primes))
+            #+ str(primes)
             + "\n---"
         )
         log_append(
@@ -55,6 +56,7 @@ def execution(n):
             + str(n)
             + ": "
             + str(len(primes))
+            + str(primes)
             + "\n---"
         )
 
