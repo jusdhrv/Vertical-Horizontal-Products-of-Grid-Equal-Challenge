@@ -1,62 +1,12 @@
 from itertools import permutations, chain, islice
-from time import time, strftime, gmtime
-from os import listdir, path, remove, makedirs
+from time import time
+from os import remove, makedirs, path
 from multiprocessing import Pool, cpu_count, Manager, Value
 from math import factorial
-
-
-def list_multiple(lst):
-    product = 1
-    for i in lst:
-        product *= i
-    return product
-
-
-def memoized_indices(n):
-    start_indices = [j * n for j in range(n)]
-    end_indices = [start_index + n for start_index in start_indices]
-    row_indices = [
-        list(range(start, end)) for start, end in zip(start_indices, end_indices)
-    ]
-    col_indices = [[l + m * n for m in range(n)] for l in range(n)]
-    return row_indices, col_indices
-
-
-def get_next_log_file():
-    log_dir = "Data"
-    log_suffix = "-logs.txt"
-    existing_logs = [f for f in listdir(log_dir) if f.endswith(log_suffix)]
-
-    if not existing_logs:
-        return path.join(log_dir, f"1{log_suffix}")
-
-    log_numbers = [int(f[: -len(log_suffix)]) for f in existing_logs]
-    latest_log_number = max(log_numbers, default=0)
-    latest_log_file = path.join(log_dir, f"{latest_log_number}{log_suffix}")
-
-    # Check if the latest log file ends with '&end&'
-    with open(latest_log_file, "r") as file:
-        lines = file.readlines()
-        if lines and lines[-1].strip() == "&end&":
-            next_log_number = latest_log_number + 1
-            return path.join(log_dir, f"{next_log_number}{log_suffix}")
-        else:
-            return latest_log_file
-
-
-def log_append(data):
-    log_file_path = get_next_log_file()
-    with open(log_file_path, "a") as file1:
-        file1.write(data + "\n")
-
-
-def canonical_form(grid, n):
-    grid = [grid[i : i + n] for i in range(0, len(grid), n)]
-    grid = sorted(grid)
-    grid = list(zip(*grid))
-    grid = sorted(grid)
-    grid = list(zip(*grid))
-    return tuple(chain(*grid))
+from modules import (
+    canonical_form, format_time, save_json_output, create_solution_dict,
+    parse_solution_string, list_multiple, memoized_indices
+)
 
 
 def check_permutation_all(args):
@@ -178,17 +128,16 @@ def log_worker(log_queue):
         data = log_queue.get()
         if data == "DONE":
             break
-        log_append(data)
+        # Store solutions for JSON output instead of logging to file
+        log_queue.solutions.append(data)
 
 
 def find_grids_n(n, single_solution=False):
     """Find grid solutions for given n, with option to find single or all solutions."""
     mode = "single solution" if single_solution else "all solutions"
-    log_append(f"For, n = {n} (Mode: {mode})")
     print(f"\nBegin execution for n = {n} (Mode: {mode})")
     possible_vals = list(range(1, n * n + 1))
 
-    log_append(f"| Possible values of the grid cells are: {possible_vals}\n")
     print(f"| Possible values of the grid cells are: {possible_vals}")
     n_start_time = time()
 
@@ -196,6 +145,7 @@ def find_grids_n(n, single_solution=False):
 
     manager = Manager()
     log_queue = manager.Queue()
+    log_queue.solutions = []  # Store solutions here
 
     log_process = Pool(1, log_worker, (log_queue,))
     split_permutations_to_files(possible_vals, cpu_count(), n)
@@ -216,15 +166,20 @@ def find_grids_n(n, single_solution=False):
         if path.exists(worker_file):
             remove(worker_file)
 
-    log_append(f"\nExecution Time: {format_time(time() - n_start_time)}")
-    log_append("\n---\n")
-    print(
-        f"\nFinished executing for: {n}, Execution Time: {format_time(time() - n_start_time)}"
-    )
+    # Convert solutions to JSON format
+    solutions = []
+    for solution_str in log_queue.solutions:
+        grid, h_products, v_products = parse_solution_string(solution_str)
+        if grid is not None:
+            solution_dict = create_solution_dict(grid, h_products, v_products, n)
+            solutions.append(solution_dict)
 
-
-def format_time(seconds):
-    return strftime("%H:%M:%S", gmtime(seconds))
+    execution_time = time() - n_start_time
+    
+    # Save JSON output
+    save_json_output(n, solutions, execution_time)
+    
+    print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
 
 
 # Example usage
@@ -266,5 +221,4 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             print("\nExecution interrupted by user.")
 
-    print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}")
-    log_append("&end&") 
+    print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}") 

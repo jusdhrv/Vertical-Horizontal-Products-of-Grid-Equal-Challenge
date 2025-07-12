@@ -2,18 +2,14 @@ import itertools
 import math
 import time
 from multiprocessing import Pool, cpu_count
-from os import listdir, path
+from modules import (
+    canonical_form, format_time, save_json_output, create_solution_dict,
+    parse_solution_string, list_multiple, memoized_indices
+)
 
 # Memoization dictionaries
 memo = {}
 index_memo = {}
-
-
-def list_multiple(lst):
-    product = 1
-    for i in lst:
-        product *= i
-    return product
 
 
 def memoized_list_multiple(sublist):
@@ -23,51 +19,17 @@ def memoized_list_multiple(sublist):
     return memo[key]
 
 
-def memoized_indices(n):
+def memoized_indices_cached(n):
     if n not in index_memo:
-        start_indices = [j * n for j in range(n)]
-        end_indices = [start_index + n for start_index in start_indices]
-        row_indices = [
-            list(range(start, end)) for start, end in zip(start_indices, end_indices)
-        ]
-        col_indices = [[l + m * n for m in range(n)] for l in range(n)]
-        index_memo[n] = (row_indices, col_indices)
+        index_memo[n] = memoized_indices(n)
     return index_memo[n]
-
-
-def get_next_log_file():
-    log_dir = "Data"
-    log_suffix = "-logs.txt"
-    existing_logs = [f for f in listdir(log_dir) if f.endswith(log_suffix)]
-
-    if not existing_logs:
-        return path.join(log_dir, f"1{log_suffix}")
-
-    log_numbers = [int(f[: -len(log_suffix)]) for f in existing_logs]
-    latest_log_number = max(log_numbers, default=0)
-    latest_log_file = path.join(log_dir, f"{latest_log_number}{log_suffix}")
-
-    # Check if the latest log file ends with '&end&'
-    with open(latest_log_file, "r") as file:
-        lines = file.readlines()
-        if lines and lines[-1].strip() == "&end&":
-            next_log_number = latest_log_number + 1
-            return path.join(log_dir, f"{next_log_number}{log_suffix}")
-        else:
-            return latest_log_file
-
-
-def log_append(data):
-    log_file_path = get_next_log_file()
-    with open(log_file_path, "a") as file1:
-        file1.write(data + "\n")
 
 
 def check_permutation(p, n, single_solution=False, found_solution=None):
     if single_solution and found_solution and found_solution.value:
         return None
         
-    row_indices, col_indices = memoized_indices(n)
+    row_indices, col_indices = memoized_indices_cached(n)
     h_product = [memoized_list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [memoized_list_multiple([p[idx] for idx in col]) for col in col_indices]
 
@@ -80,11 +42,9 @@ def check_permutation(p, n, single_solution=False, found_solution=None):
 
 def find_grids_n(n, single_solution=False):
     mode = "single solution" if single_solution else "all solutions"
-    log_append(f"For, n = {n} (Mode: {mode})")
     print(f"\nBegin execution for n = {n} (Mode: {mode})")
     possible_vals = list(range(1, n * n + 1))
 
-    log_append(f"| Possible values of the grid cells are: {possible_vals}\n")
     print(f"| Possible values of the grid cells are: {possible_vals}")
     n_start_time = time.time()
 
@@ -121,17 +81,21 @@ def find_grids_n(n, single_solution=False):
             if result:
                 valid_permutations.append(result)
 
+    # Convert to solution dictionaries for JSON output
+    solutions = []
     for valid_permutation in valid_permutations:
-        log_append(valid_permutation)
+        # Use the parse_solution_string function from modules
+        grid, h_products, v_products = parse_solution_string(valid_permutation)
+        if grid is not None:
+            solution_dict = create_solution_dict(grid, h_products, v_products, n)
+            solutions.append(solution_dict)
 
     execution_time = time.time() - n_start_time
-    log_append(f"\nExecution Time: {format_time(execution_time)}")
-    log_append("\n---\n")
+    
+    # Save JSON output
+    save_json_output(n, solutions, execution_time)
+    
     print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
-
-
-def format_time(seconds):
-    return time.strftime("%H:%M:%S", time.gmtime(seconds))
 
 
 # Example usage
@@ -174,4 +138,3 @@ if __name__ == "__main__":
             print("\nExecution interrupted by user.")
 
     print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")
-    log_append("&end&")
