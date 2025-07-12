@@ -63,47 +63,71 @@ def log_append(data):
         file1.write(data + "\n")
 
 
-def check_permutation(p, n):
+def check_permutation(p, n, single_solution=False, found_solution=None):
+    if single_solution and found_solution and found_solution.value:
+        return None
+        
     row_indices, col_indices = memoized_indices(n)
     h_product = [memoized_list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [memoized_list_multiple([p[idx] for idx in col]) for col in col_indices]
 
     if set(h_product) == set(v_product):
+        if single_solution and found_solution:
+            found_solution.value = True
         return str(p) + " " + str(h_product) + " " + str(v_product)
     return None
 
 
-def find_grids_n(n):
-    log_append("For, n = " + str(n))
+def find_grids_n(n, single_solution=False):
+    mode = "single solution" if single_solution else "all solutions"
+    log_append(f"For, n = {n} (Mode: {mode})")
+    print(f"\nBegin execution for n = {n} (Mode: {mode})")
     possible_vals = list(range(1, n * n + 1))
 
-    log_append("Possible values of the grid cells are: " + str(possible_vals) + "\n")
+    log_append(f"| Possible values of the grid cells are: {possible_vals}\n")
+    print(f"| Possible values of the grid cells are: {possible_vals}")
     n_start_time = time.time()
 
     total_p = math.factorial(n * n)
-    p_count = 1
+    print(f"| Total permutations to check: {total_p:,}")
 
     valid_permutations = []
 
-    with Pool(cpu_count()) as pool:
-        results = pool.starmap(
-            check_permutation, [(p, n) for p in itertools.permutations(possible_vals)]
-        )
-
-    for result in results:
-        if result:
-            valid_permutations.append(result)
+    if single_solution:
+        # Single solution mode with early termination
+        from multiprocessing import Manager
+        manager = Manager()
+        found_solution = manager.Value("i", False)
+        
+        with Pool(cpu_count()) as pool:
+            results = pool.starmap(
+                check_permutation, 
+                [(p, n, True, found_solution) for p in itertools.permutations(possible_vals)]
+            )
+            
+        for result in results:
+            if result:
+                valid_permutations.append(result)
+                break  # Stop after first solution
+    else:
+        # All solutions mode
+        with Pool(cpu_count()) as pool:
+            results = pool.starmap(
+                check_permutation, 
+                [(p, n, False, None) for p in itertools.permutations(possible_vals)]
+            )
+            
+        for result in results:
+            if result:
+                valid_permutations.append(result)
 
     for valid_permutation in valid_permutations:
         log_append(valid_permutation)
 
-    log_append("\nExecution Time: " + str(format_time(time.time() - n_start_time)))
+    execution_time = time.time() - n_start_time
+    log_append(f"\nExecution Time: {format_time(execution_time)}")
     log_append("\n---\n")
-    print(
-        "Finished executing for:",
-        n,
-        ", Execution Time: " + str(format_time(time.time() - n_start_time)),
-    )
+    print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
 
 
 def format_time(seconds):
@@ -112,36 +136,42 @@ def format_time(seconds):
 
 # Example usage
 if __name__ == "__main__":
-    try:
-        print(
-            "This programme executes the possible grid finder from 1 up to a maximum 'n' of your choice..."
-        )
-        n_max = int(input("Enter the value for 'n' to use: "))
-        main_start_time = time.time()
+    print(
+        "This programme executes the fast memoized grid finder from 1 up to a maximum 'n' of your choice..."
+    )
+    n_max = int(input("Enter the value for 'n' to use: "))
+    
+    # Ask user for mode
+    print("\nChoose execution mode:")
+    print("1. Find all possible solutions")
+    print("2. Find single solution (stop after first)")
+    mode_choice = input("Enter your choice (1 or 2): ").strip()
+    
+    single_solution = mode_choice == "2"
+    mode_str = "single solution" if single_solution else "all solutions"
+    print(f"\nSelected mode: {mode_str}")
+    
+    main_start_time = time.time()
 
-        if n_max < 0:
-            print("\nInvalid value provided. Must be a natural number")
+    if n_max < 0:
+        print("\nInvalid value provided. Must be a natural number")
 
-        elif n_max == 0:
-            grid_size = 1
-            while True:
-                try:
-                    find_grids_n(grid_size)
-                    grid_size += 1
-                except KeyboardInterrupt:
-                    print("\nExecution interrupted by user.")
-                    break
-
-        elif n_max > 0:
+    elif n_max == 0:
+        grid_size = 1
+        while True:
             try:
-                for grid_size in range(1, n_max + 1):
-                    find_grids_n(grid_size)
+                find_grids_n(grid_size, single_solution)
+                grid_size += 1
             except KeyboardInterrupt:
                 print("\nExecution interrupted by user.")
+                break
 
-        print(
-            "Total Execution Time: " + str(format_time(time.time() - main_start_time))
-        )
+    elif n_max > 0:
+        try:
+            for grid_size in range(1, n_max + 1):
+                find_grids_n(grid_size, single_solution)
+        except KeyboardInterrupt:
+            print("\nExecution interrupted by user.")
 
-    except ValueError:
-        print("\nInvalid input. Please enter a valid integer.")
+    print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")
+    log_append("&end&")

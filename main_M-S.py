@@ -230,7 +230,7 @@ def format_time(seconds):
 # Example usage
 if __name__ == "__main__":
     print(
-        "This programme executes the possible grid finder from 1 up to a maximum 'n' of your choice..."
+        "This programme executes the memory-safe grid finder from 1 up to a maximum 'n' of your choice..."
     )
     n_max = int(input("Enter the value for 'n' to use: "))
     
