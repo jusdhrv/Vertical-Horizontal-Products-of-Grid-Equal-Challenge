@@ -14,6 +14,21 @@ Meanwhile, Ganesh writes down the 'n' numbers obtained by multiplying the number
 - Can Arun fill in the grid in such a way that Tejas and Ganesh obtain the same lists of 'n' numbers?
 - Can you find any conditions on n that guarantee that it is possible or any conditions that guarantee that it is impossible?
 
+## Usage
+
+Run the main script:
+
+```bash
+python main.py
+```
+
+The program will prompt you for:
+
+1. The value of 'n' (grid size)
+2. Execution mode:
+   - Option 1: Find all possible solutions
+   - Option 2: Find single solution (stop after first)
+
 ### Notes on output
 
 - The programme appends all possible solutions (along with the respective products formed) to the logs.txt.
