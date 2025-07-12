@@ -3,7 +3,6 @@
 Brute force generation of possible solutions to the vertical product = horizontal product of NxN grid. (See below instructions for the challenge's statement)
 
 - Create a 'Data/' directory in the same folder as the main.py file.
-- Create a 'logs.txt' file and a 'memo_data.pkl' file in the 'Data/' directory.
 - You are now free to start executing the code!
 
 ## The Challenge Statement
