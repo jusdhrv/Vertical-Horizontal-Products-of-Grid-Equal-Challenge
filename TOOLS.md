@@ -8,7 +8,40 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 
 ## Main Scripts
 
-### 1. `main.py`
+### 1. `main_optimized.py` (Recommended)
+
+- **Purpose:**
+  - Optimized unified script that automatically chooses the best approach based on grid size.
+  - Uses fast in-memory processing with memoization for smaller grids (n ≤ 3).
+  - Switches to memory-safe file-based processing for larger grids (n ≥ 4).
+  - Combines the speed of main_P-M.py with the memory management of main.py.
+  - Interactive mode selection during execution.
+- **Key Features:**
+  - **Adaptive Processing**: Automatically selects optimal approach based on n value
+  - **Memoization**: Caches repeated calculations for better performance
+  - **Memory Management**: Handles large permutations without memory overflow
+  - **Dual Mode Support**: Single solution or all solutions mode
+- **Key Functions:**
+  - `find_grids_n_optimized(n, single_solution=False)`: Main entry point with adaptive processing.
+  - `check_permutation_fast(...)`: Fast in-memory permutation checker with memoization.
+  - `check_permutation_memory_safe(...)`: Memory-safe permutation checker for large grids.
+  - `memoized_list_multiple(...)`: Cached list multiplication for repeated calculations.
+  - `memoized_indices(...)`: Cached index calculations.
+- **Performance:**
+  - n=3: ~20 seconds (vs 6+ minutes in main.py)
+  - n=4+: Memory-safe processing to handle factorial growth
+- **Usage:**
+  - Run `python main_optimized.py`
+  - Enter the value for 'n'
+  - Choose execution mode:
+    - Option 1: Find all possible solutions
+    - Option 2: Find single solution (stop after first)
+- **Output:**
+  - Appends results to `Data/*-logs.txt` files.
+  - Each solution is logged as `[Grid] [Horizontal Products] [Vertical Products]`.
+  - Includes mode information in logs.
+
+### 2. `main.py`
 
 - **Purpose:**
   - Unified script that can find either all solutions or a single solution for a given n.
@@ -39,13 +72,13 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 
 ## Utility Scripts
 
-### 2. `clear_logs.py`
+### 3. `clear_logs.py`
 
 - **Purpose:**
   - Deletes all log files in the `Data/` directory that end with `-logs.txt`.
   - Useful for cleaning up before/after runs.
 
-### 3. `clear_workers.py`
+### 4. `clear_workers.py`
 
 - **Purpose:**
   - Deletes all worker files in `Data/Workers/` that start with `worker_`.
@@ -55,7 +88,7 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 
 ## Primes Tool
 
-### 4. `Primes/primes.py`
+### 5. `Primes/primes.py`
 
 - **Purpose:**
   - Computes and logs the number of primes in the interval ((n²)/2, n²) for a given n.
@@ -78,10 +111,21 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 
 ---
 
+## Performance Comparison
+
+| Script | n=3 Time | n=4 Memory | Approach |
+|--------|----------|------------|----------|
+| main_optimized.py | ~20s | Safe | Adaptive (fast for small n, safe for large n) |
+| main.py | 6+ min | Safe | File-based for all n |
+| main_P-M.py | ~20s | Overflow | In-memory for all n |
+
+---
+
 ## Summary Table
 
 | Script/Tool         | Purpose/Functionality                                      |
 |---------------------|-----------------------------------------------------------|
+| main_optimized.py   | Optimized grid search with adaptive processing (Recommended) |
 | main.py             | Unified grid search with single/all solutions mode        |
 | clear_logs.py       | Delete all log files in Data/                              |
 | clear_workers.py    | Delete all worker files in Data/Workers/                   |
@@ -89,3 +133,5 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 | Reference Outputs/  | Store reference outputs for validation                     |
 
 ---
+
+# End of TOOLS.md

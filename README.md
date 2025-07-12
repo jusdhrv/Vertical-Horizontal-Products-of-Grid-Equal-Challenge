@@ -16,7 +16,17 @@ Meanwhile, Ganesh writes down the 'n' numbers obtained by multiplying the number
 
 ## Usage
 
-Run the main script:
+### Recommended: Optimized Version
+
+For best performance, use the optimized version:
+
+```bash
+python main_optimized.py
+```
+
+### Standard Version
+
+For the standard implementation:
 
 ```bash
 python main.py
@@ -28,6 +38,13 @@ The program will prompt you for:
 2. Execution mode:
    - Option 1: Find all possible solutions
    - Option 2: Find single solution (stop after first)
+
+## Performance Differences
+
+- **main_optimized.py**: Automatically chooses the best approach based on grid size
+  - n ≤ 3: Fast in-memory processing with memoization (~20 seconds for n=3)
+  - n ≥ 4: Memory-safe file-based processing to handle large permutations
+- **main.py**: Uses file-based processing for all grid sizes (slower for small n)
 
 ### Notes on output
 
