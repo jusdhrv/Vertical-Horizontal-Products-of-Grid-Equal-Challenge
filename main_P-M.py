@@ -36,7 +36,7 @@ def check_permutation(p, n, single_solution=False, found_solution=None):
     if set(h_product) == set(v_product):
         if single_solution and found_solution:
             found_solution.value = True
-        return str(p) + " " + str(h_product) + " " + str(v_product)
+        return (p, h_product, v_product)
     return None
 
 
@@ -51,7 +51,7 @@ def find_grids_n(n, single_solution=False):
     total_p = math.factorial(n * n)
     print(f"| Total permutations to check: {total_p:,}")
 
-    valid_permutations = []
+    solutions = []
 
     if single_solution:
         # Single solution mode with early termination
@@ -67,7 +67,9 @@ def find_grids_n(n, single_solution=False):
             
         for result in results:
             if result:
-                valid_permutations.append(result)
+                grid, h_products, v_products = result
+                solution_dict = create_solution_dict(grid, h_products, v_products, n)
+                solutions.append(solution_dict)
                 break  # Stop after first solution
     else:
         # All solutions mode
@@ -79,16 +81,9 @@ def find_grids_n(n, single_solution=False):
             
         for result in results:
             if result:
-                valid_permutations.append(result)
-
-    # Convert to solution dictionaries for JSON output
-    solutions = []
-    for valid_permutation in valid_permutations:
-        # Use the parse_solution_string function from modules
-        grid, h_products, v_products = parse_solution_string(valid_permutation)
-        if grid is not None:
-            solution_dict = create_solution_dict(grid, h_products, v_products, n)
-            solutions.append(solution_dict)
+                grid, h_products, v_products = result
+                solution_dict = create_solution_dict(grid, h_products, v_products, n)
+                solutions.append(solution_dict)
 
     execution_time = time.time() - n_start_time
     

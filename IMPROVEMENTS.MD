@@ -16,7 +16,7 @@
 **Current Format:** Plain text with specific formatting
 **Proposed Formats:**
 
-#### JSON Format
+### JSON Format
 
 ```json
 {

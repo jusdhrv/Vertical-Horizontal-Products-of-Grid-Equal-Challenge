@@ -169,10 +169,21 @@ def find_grids_n(n, single_solution=False):
     # Convert solutions to JSON format
     solutions = []
     for solution_str in log_queue.solutions:
-        grid, h_products, v_products = parse_solution_string(solution_str)
-        if grid is not None:
-            solution_dict = create_solution_dict(grid, h_products, v_products, n)
-            solutions.append(solution_dict)
+        # Parse the solution string format: "canonical_p h_product v_product"
+        parts = solution_str.split(' ', 2)
+        if len(parts) == 3:
+            canonical_p_str, h_str, v_str = parts
+            try:
+                # Convert string representations to actual Python objects
+                grid = eval(canonical_p_str)
+                h_products = eval(h_str)
+                v_products = eval(v_str)
+                solution_dict = create_solution_dict(grid, h_products, v_products, n)
+                solutions.append(solution_dict)
+            except (ValueError, SyntaxError) as e:
+                print(f"Warning: Could not parse solution string: {solution_str}")
+                print(f"Error: {e}")
+                continue
 
     execution_time = time() - n_start_time
     
