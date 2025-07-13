@@ -1,27 +1,30 @@
 import os
+from os import listdir, path, remove
 
 
 def clear_logs():
-    existing_logs = [f for f in os.listdir("Data") if f.endswith("-logs.txt")]
+    existing_logs = [f for f in listdir("Data") if f.endswith("-logs.txt")]
     if existing_logs:
         for log_file in existing_logs:
             log_file_path = f"Data/{log_file}"
-            os.remove(log_file_path)
+            remove(log_file_path)
             print(f"Deleted {log_file_path}")
         print(f"Cleared contents of logs")
     else:
         print(f"No logs to delete")
 
 def clear_outputs():
-    existing_outputs = [f for f in os.listdir("Data") if f.endswith("-output.json")]
-    if existing_outputs:
-        for output_file in existing_outputs:
-            output_file_path = f"Data/{output_file}"
-            os.remove(output_file_path)
-            print(f"Deleted {output_file_path}")
-        print(f"Cleared contents of outputs")
-    else:
-        print(f"No outputs to delete")
+    """Delete all session output files in the Data/ folder."""
+    output_dir = "Data"
+    if not path.exists(output_dir):
+        print("| Data directory does not exist.")
+        return
+    deleted = 0
+    for f in listdir(output_dir):
+        if f.startswith("session_") and f.endswith("-output.json"):
+            remove(path.join(output_dir, f))
+            deleted += 1
+    print(f"| Deleted {deleted} session output files.")
 
 
 if __name__ == "__main__":
