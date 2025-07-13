@@ -1,7 +1,7 @@
 import itertools
 import math
 import time
-from multiprocessing import Pool, cpu_count, Manager, Value
+from multiprocessing import Pool, cpu_count, Manager, Value, Process
 from os import remove, makedirs, path
 from itertools import permutations, chain, islice
 from modules import (
@@ -72,86 +72,39 @@ def check_permutation_memory_safe_single(args):
     return None
 
 
-def write_worker_file(worker_id, perms, chunk_size, n):
-    """Write worker file for memory-safe processing."""
-    worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
-    if path.exists(worker_file):
-        with open(worker_file, "r") as f:
-            lines = f.readlines()
-            if lines and lines[-1].strip() == "&end&":
-                print(f"| Worker {worker_id} file for n={n} already set up.")
-                return
-
-    with open(worker_file, "w") as f:
-        for perm in islice(perms, chunk_size):
-            f.write(",".join(map(str, perm)) + "\n")
-        f.write("&end&\n")
-    print(f"| Worker {worker_id} file setup complete for n={n}.")
-
-
-def split_permutations_to_files(possible_vals, num_workers, n):
-    """Split permutations into worker files for memory-safe processing."""
+def chunked_permutations(possible_vals, num_chunks):
+    """Yield num_chunks chunks of permutations of possible_vals."""
     perms = permutations(possible_vals)
     total_perms = math.factorial(len(possible_vals))
-    chunk_size = max(total_perms // num_workers, 1)
-
-    print(f"\nSetting up worker files for n={n}...")
-    makedirs("Data/Workers", exist_ok=True)
-    with Pool(num_workers) as pool:
-        pool.starmap(
-            write_worker_file, [(i, perms, chunk_size, n) for i in range(num_workers)]
-        )
+    chunk_size = max(total_perms // num_chunks, 1)
+    for _ in range(num_chunks):
+        yield list(islice(perms, chunk_size))
 
 
 def process_permutations_memory_safe(n, possible_vals, row_indices, col_indices, log_queue, single_solution=False, found_solution=None):
-    """Process permutations using memory-safe approach."""
-    def generate_permutations():
-        for perm in permutations(possible_vals):
-            yield perm
+    """Process permutations using memory-safe approach with in-memory chunking."""
+    num_workers = cpu_count()
+    chunks = list(chunked_permutations(possible_vals, num_workers))
 
-    if single_solution:
-        with Pool(cpu_count()) as pool:
-            results = pool.imap_unordered(
-                check_permutation_memory_safe_single,
-                (
-                    (perm, n, row_indices, col_indices, worker_id, found_solution)
-                    for worker_id in range(cpu_count())
-                    for perm in generate_permutations()
-                ),
-                chunksize=1000,
-            )
-
-            for result in results:
-                if result:
-                    canonical_p, h_product, v_product, worker_id = result
-                    log_queue.put(f"{canonical_p} {h_product} {v_product}")
-                    if found_solution.value:
+    def worker(chunk, n, row_indices, col_indices, worker_id, single_solution, found_solution, log_queue):
+        for perm in chunk:
+            if single_solution and found_solution and found_solution.value:
                         break
-    else:
-        with Pool(cpu_count()) as pool:
-            results = pool.imap_unordered(
-                check_permutation_memory_safe,
-                (
-                    (perm, n, row_indices, col_indices, worker_id)
-                    for worker_id in range(cpu_count())
-                    for perm in generate_permutations()
-                ),
-                chunksize=1000,
-            )
-
-            for result in results:
-                if result:
-                    canonical_p, h_product, v_product, worker_id = result
+            h_product = [list_multiple([perm[idx] for idx in row]) for row in row_indices]
+            v_product = [list_multiple([perm[idx] for idx in col]) for col in col_indices]
+            if set(h_product) == set(v_product):
+                canonical_p = canonical_form(perm, n)
+                if single_solution and found_solution:
+                    found_solution.value = True
                     log_queue.put(f"{canonical_p} {h_product} {v_product}")
 
-
-def delete_evaluated_permutation(n, worker_id, perm):
-    """Delete evaluated permutation from worker file."""
-    worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
-    with open(worker_file, "r") as f:
-        lines = f.readlines()
-    with open(worker_file, "w") as f:
-        f.writelines(line for line in lines if line.strip() != ",".join(map(str, perm)))
+    processes = []
+    for worker_id, chunk in enumerate(chunks):
+        p = Process(target=worker, args=(chunk, n, row_indices, col_indices, worker_id, single_solution, found_solution, log_queue))
+        p.start()
+        processes.append(p)
+    for p in processes:
+        p.join()
 
 
 def log_worker(log_queue):
@@ -216,9 +169,9 @@ def find_grids_n_optimized(n, single_solution=False, session_file=None):
             for result in results:
                 if result:
                     grid, h_products, v_products = result
-                    solution_dict = create_solution_dict(grid, h_products, v_products, n)
-                    solutions.append(solution_dict)
-
+                solution_dict = create_solution_dict(grid, h_products, v_products, n)
+                solutions.append(solution_dict)
+            
     else:
         print(f"| Using memory-safe file-based approach for n={n}")
         # Memory-safe approach (like current main.py)
@@ -229,7 +182,6 @@ def find_grids_n_optimized(n, single_solution=False, session_file=None):
         log_queue.solutions = []  # Store solutions here
         
         log_process = Pool(1, log_worker, (log_queue,))
-        split_permutations_to_files(possible_vals, cpu_count(), n)
         
         if single_solution:
             found_solution = manager.Value("i", False)
@@ -242,10 +194,10 @@ def find_grids_n_optimized(n, single_solution=False, session_file=None):
         log_process.join()
         
         # Delete worker files after processing
-        for worker_id in range(cpu_count()):
-            worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
-            if path.exists(worker_file):
-                remove(worker_file)
+        # for worker_id in range(cpu_count()):
+        #     worker_file = f"Data/Workers/worker_{n}_{worker_id}.txt"
+        #     if path.exists(worker_file):
+        #         remove(worker_file)
         
         # Convert solutions to JSON format
         solutions = []
@@ -259,8 +211,8 @@ def find_grids_n_optimized(n, single_solution=False, session_file=None):
                     grid = eval(canonical_p_str)
                     h_products = eval(h_str)
                     v_products = eval(v_str)
-                    solution_dict = create_solution_dict(grid, h_products, v_products, n)
-                    solutions.append(solution_dict)
+                solution_dict = create_solution_dict(grid, h_products, v_products, n)
+                solutions.append(solution_dict)
                 except (ValueError, SyntaxError) as e:
                     print(f"Warning: Could not parse solution string: {solution_str}")
                     print(f"Error: {e}")
@@ -270,7 +222,7 @@ def find_grids_n_optimized(n, single_solution=False, session_file=None):
     
     # Don't save JSON output here if using session file
     if not session_file:
-        save_json_output(n, solutions, execution_time)
+    save_json_output(n, solutions, execution_time)
     
     print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
     return {"n": n, "solutions": solutions, "execution_time": format_time(execution_time)}
@@ -327,5 +279,5 @@ if __name__ == "__main__":
     if all_results:
         total_execution_time = time.time() - main_start_time
         save_json_output("multiple", all_results, total_execution_time, session_file)
-    
+
     print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}") 
