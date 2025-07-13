@@ -4,7 +4,7 @@ import time
 from multiprocessing import Pool, cpu_count
 from modules import (
     canonical_form, format_time, save_json_output, create_solution_dict,
-    parse_solution_string, list_multiple, memoized_indices
+    parse_solution_string, list_multiple, memoized_indices, get_session_file
 )
 
 # Memoization dictionaries
@@ -40,7 +40,7 @@ def check_permutation(p, n, single_solution=False, found_solution=None):
     return None
 
 
-def find_grids_n(n, single_solution=False):
+def find_grids_n(n, single_solution=False, session_file=None):
     mode = "single solution" if single_solution else "all solutions"
     print(f"\nBegin execution for n = {n} (Mode: {mode})")
     possible_vals = list(range(1, n * n + 1))
@@ -87,10 +87,12 @@ def find_grids_n(n, single_solution=False):
 
     execution_time = time.time() - n_start_time
     
-    # Save JSON output
-    save_json_output(n, solutions, execution_time)
+    # Don't save JSON output here if using session file
+    if not session_file:
+        save_json_output(n, solutions, execution_time)
     
     print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
+    return {"n": n, "solutions": solutions, "execution_time": format_time(execution_time)}
 
 
 # Example usage
@@ -111,6 +113,10 @@ if __name__ == "__main__":
     print(f"\nSelected mode: {mode_str}")
     
     main_start_time = time.time()
+    
+    # Get session file for this execution
+    session_file = get_session_file()
+    all_results = []
 
     if n_max < 0:
         print("\nInvalid value provided. Must be a natural number")
@@ -119,7 +125,9 @@ if __name__ == "__main__":
         grid_size = 1
         while True:
             try:
-                find_grids_n(grid_size, single_solution)
+                result = find_grids_n(grid_size, single_solution, session_file)
+                if result:
+                    all_results.append(result)
                 grid_size += 1
             except KeyboardInterrupt:
                 print("\nExecution interrupted by user.")
@@ -128,8 +136,15 @@ if __name__ == "__main__":
     elif n_max > 0:
         try:
             for grid_size in range(1, n_max + 1):
-                find_grids_n(grid_size, single_solution)
+                result = find_grids_n(grid_size, single_solution, session_file)
+                if result:
+                    all_results.append(result)
         except KeyboardInterrupt:
             print("\nExecution interrupted by user.")
 
+    # Save all results to the session file
+    if all_results:
+        total_execution_time = time.time() - main_start_time
+        save_json_output("multiple", all_results, total_execution_time, session_file)
+    
     print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}")

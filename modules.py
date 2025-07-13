@@ -4,31 +4,46 @@ from os import listdir, path, makedirs
 from itertools import chain
 from math import factorial
 
+# Global session counter for unique file naming
+_session_counter = 0
+
+def get_session_file():
+    """Get a unique file path for the current execution session."""
+    global _session_counter
+    _session_counter += 1
+    output_dir = "Data"
+    makedirs(output_dir, exist_ok=True)
+    return path.join(output_dir, f"session_{_session_counter}-output.json")
+
 
 def get_next_json_file():
     """Get the next available JSON output file number."""
     output_dir = "Data"
     json_suffix = "-output.json"
+    
+    # Ensure Data directory exists
+    makedirs(output_dir, exist_ok=True)
+    
     existing_files = [f for f in listdir(output_dir) if f.endswith(json_suffix)]
 
     if not existing_files:
         return path.join(output_dir, f"1{json_suffix}")
 
-    file_numbers = [int(f[: -len(json_suffix)]) for f in existing_files]
-    latest_file_number = max(file_numbers, default=0)
-    latest_file = path.join(output_dir, f"{latest_file_number}{json_suffix}")
-
-    # Check if the latest file ends with '&end&'
-    try:
-        with open(latest_file, "r") as file:
-            content = file.read()
-            if content.strip().endswith('"&end&"'):
-                next_file_number = latest_file_number + 1
-                return path.join(output_dir, f"{next_file_number}{json_suffix}")
-            else:
-                return latest_file
-    except (FileNotFoundError, json.JSONDecodeError):
-        return latest_file
+    # Extract file numbers and find the next one
+    file_numbers = []
+    for f in existing_files:
+        try:
+            # Extract number from filename like "1-output.json" -> 1
+            number = int(f.split('-')[0])
+            file_numbers.append(number)
+        except (ValueError, IndexError):
+            continue
+    
+    if not file_numbers:
+        return path.join(output_dir, f"1{json_suffix}")
+    
+    next_file_number = max(file_numbers) + 1
+    return path.join(output_dir, f"{next_file_number}{json_suffix}")
 
 
 def canonical_form(grid, n):
