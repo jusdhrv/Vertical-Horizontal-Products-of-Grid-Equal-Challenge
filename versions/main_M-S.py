@@ -3,7 +3,7 @@ from time import time
 from os import remove, makedirs, path
 from multiprocessing import Pool, cpu_count, Manager, Value, Process
 from math import factorial
-from modules import (
+from ../modules import (
     canonical_form, format_time, save_json_output, create_solution_dict,
     parse_solution_string, list_multiple, memoized_indices, get_session_file
 )
@@ -179,30 +179,45 @@ def find_grids_n(n, single_solution=False, session_file=None):
 
 # Example usage
 if __name__ == "__main__":
+    import sys
+    args = sys.argv[1:]
+    if len(args) >= 1:
+        try:
+            n_max = int(args[0])
+        except Exception:
+            n_max = None
+    else:
+        n_max = None
+    if len(args) >= 2:
+        mode_choice = args[1]
+        if mode_choice.lower() in ["all", "1"]:
+            single_solution = False
+        elif mode_choice.lower() in ["single", "2"]:
+            single_solution = True
+        else:
+            single_solution = False
+    else:
+        mode_choice = None
+        single_solution = None
+
     print(
         "This programme executes the memory-safe grid finder from 1 up to a maximum 'n' of your choice..."
     )
-    n_max = int(input("Enter the value for 'n' to use: "))
-    
-    # Ask user for mode
-    print("\nChoose execution mode:")
-    print("1. Find all possible solutions")
-    print("2. Find single solution (stop after first)")
-    mode_choice = input("Enter your choice (1 or 2): ").strip()
-    
-    single_solution = mode_choice == "2"
+    if n_max is None:
+        n_max = int(input("Enter the value for 'n' to use: "))
+    if single_solution is None:
+        print("\nChoose execution mode:")
+        print("1. Find all possible solutions")
+        print("2. Find single solution (stop after first)")
+        mode_choice = input("Enter your choice (1 or 2): ").strip()
+        single_solution = mode_choice == "2"
     mode_str = "single solution" if single_solution else "all solutions"
     print(f"\nSelected mode: {mode_str}")
-    
-    main_start_time = time.time()
-    
-    # Get session file for this execution
+    main_start_time = time()
     session_file = get_session_file()
     all_results = []
-
     if n_max < 0:
         print("\nInvalid value provided. Must be a natural number")
-
     elif n_max == 0:
         grid_size = 1
         while True:
@@ -214,7 +229,6 @@ if __name__ == "__main__":
             except KeyboardInterrupt:
                 print("\nExecution interrupted by user.")
                 break
-
     elif n_max > 0:
         try:
             for grid_size in range(1, n_max + 1):
@@ -223,10 +237,7 @@ if __name__ == "__main__":
                     all_results.append(result)
         except KeyboardInterrupt:
             print("\nExecution interrupted by user.")
-
-    # Save all results to the session file
     if all_results:
-        total_execution_time = time.time() - main_start_time
+        total_execution_time = time() - main_start_time
         save_json_output("multiple", all_results, total_execution_time, session_file)
-    
-    print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}") 
+    print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}") 
