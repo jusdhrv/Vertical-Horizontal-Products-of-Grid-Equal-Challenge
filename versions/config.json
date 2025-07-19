@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Latest (All Features)",
+    "filename": "../main.py",
+    "feature": "Unified, parallel, memoized, memory-safe, real-time progress, performance metrics"
+  },
+  {
+    "name": "Parallel + Memoization",
+    "filename": "main_P-M.py",
+    "feature": "Parallelized with memoization for fast small-n"
+  },
+  {
+    "name": "Memory Safe",
+    "filename": "main_M-S.py",
+    "feature": "Memory-safe permutation batching for large-n"
+  }
+]
