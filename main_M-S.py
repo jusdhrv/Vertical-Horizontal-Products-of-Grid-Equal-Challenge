@@ -9,26 +9,42 @@ from modules import (
 )
 
 
-def check_permutation_all(args):
+def progress_monitor(total, counter, start_time, stop_flag):
+    while not stop_flag.value:
+        checked = counter.value
+        percent = (checked / total) * 100 if total else 0
+        elapsed = time.time() - start_time
+        eta = (elapsed / checked * (total - checked)) if checked else 0
+        print(f"\rProgress: {checked:,}/{total:,} ({percent:.2f}%) | Elapsed: {format_time(elapsed)} | ETA: {format_time(eta)}", end="", flush=True)
+        time.sleep(1)
+    checked = counter.value
+    percent = (checked / total) * 100 if total else 0
+    elapsed = time.time() - start_time
+    print(f"\rProgress: {checked:,}/{total:,} ({percent:.2f}%) | Elapsed: {format_time(elapsed)} | ETA: 00:00:00", flush=True)
+
+
+def check_permutation_all(args, progress_counter=None):
     """Check permutation for all solutions mode."""
     p, n, row_indices, col_indices, worker_id = args
     h_product = [list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [list_multiple([p[idx] for idx in col]) for col in col_indices]
-
+    if progress_counter is not None:
+        progress_counter.value += 1
     if set(h_product) == set(v_product):
         canonical_p = canonical_form(p, n)
         return canonical_p, h_product, v_product, worker_id
     return None
 
 
-def check_permutation_single(args):
+def check_permutation_single(args, progress_counter=None):
     """Check permutation for single solution mode."""
     p, n, row_indices, col_indices, worker_id, found_solution = args
     if found_solution.value:
         return None
     h_product = [list_multiple([p[idx] for idx in row]) for row in row_indices]
     v_product = [list_multiple([p[idx] for idx in col]) for col in col_indices]
-
+    if progress_counter is not None:
+        progress_counter.value += 1
     if set(h_product) == set(v_product):
         canonical_p = canonical_form(p, n)
         found_solution.value = True
@@ -45,34 +61,39 @@ def chunked_permutations(possible_vals, num_chunks):
         yield list(islice(perms, chunk_size))
 
 
-def process_permutations_all(n, possible_vals, row_indices, col_indices, log_queue):
+def process_permutations_all(n, possible_vals, row_indices, col_indices, log_queue, progress_counter):
     """Process permutations for all solutions mode using in-memory chunking."""
     num_workers = cpu_count()
     chunks = list(chunked_permutations(possible_vals, num_workers))
 
-    def worker(chunk, n, row_indices, col_indices, worker_id, log_queue):
+    def worker(chunk, n, row_indices, col_indices, worker_id, log_queue, progress_counter):
         for perm in chunk:
             h_product = [list_multiple([perm[idx] for idx in row]) for row in row_indices]
             v_product = [list_multiple([perm[idx] for idx in col]) for col in col_indices]
+            if progress_counter is not None:
+                progress_counter.value += 1
             if set(h_product) == set(v_product):
                 canonical_p = canonical_form(perm, n)
                 log_queue.put(f"{canonical_p} {h_product} {v_product}")
 
     processes = []
     for worker_id, chunk in enumerate(chunks):
-        p = Process(target=worker, args=(chunk, n, row_indices, col_indices, worker_id, log_queue))
+        p = Process(
+            target=worker,
+            args=(chunk, n, row_indices, col_indices, worker_id, log_queue, progress_counter)
+        )
         p.start()
         processes.append(p)
     for p in processes:
         p.join()
 
 
-def process_permutations_single(n, possible_vals, row_indices, col_indices, log_queue, found_solution):
+def process_permutations_single(n, possible_vals, row_indices, col_indices, log_queue, found_solution, progress_counter):
     """Process permutations for single solution mode using in-memory chunking."""
     num_workers = cpu_count()
     chunks = list(chunked_permutations(possible_vals, num_workers))
 
-    def worker(chunk, n, row_indices, col_indices, worker_id, found_solution, log_queue):
+    def worker(chunk, n, row_indices, col_indices, worker_id, found_solution, log_queue, progress_counter):
         for perm in chunk:
             if found_solution.value:
                 break
@@ -82,10 +103,12 @@ def process_permutations_single(n, possible_vals, row_indices, col_indices, log_
                 canonical_p = canonical_form(perm, n)
                 found_solution.value = True
                 log_queue.put(f"{canonical_p} {h_product} {v_product}")
+                if progress_counter is not None:
+                    progress_counter.value += 1
 
     processes = []
     for worker_id, chunk in enumerate(chunks):
-        p = Process(target=worker, args=(chunk, n, row_indices, col_indices, worker_id, found_solution, log_queue))
+        p = Process(target=worker, args=(chunk, n, row_indices, col_indices, worker_id, found_solution, log_queue, progress_counter))
         p.start()
         processes.append(p)
     for p in processes:
@@ -106,37 +129,33 @@ def find_grids_n(n, single_solution=False, session_file=None):
     mode = "single solution" if single_solution else "all solutions"
     print(f"\nBegin execution for n = {n} (Mode: {mode})")
     possible_vals = list(range(1, n * n + 1))
-
     print(f"| Possible values of the grid cells are: {possible_vals}")
-    n_start_time = time()
-
+    n_start_time = time.time()
     row_indices, col_indices = memoized_indices(n)
-
+    total_p = factorial(n * n)
+    progress_manager = Manager()
+    progress_counter = progress_manager.Value('i', 0)
+    stop_flag = progress_manager.Value('i', 0)
+    progress_proc = Process(target=progress_monitor, args=(total_p, progress_counter, n_start_time, stop_flag))
+    progress_proc.start()
     manager = Manager()
     log_queue = manager.Queue()
-    log_queue.solutions = []  # Store solutions here
-
+    log_queue.solutions = []
     log_process = Pool(1, log_worker, (log_queue,))
-    
+    solutions = []
     if single_solution:
         found_solution = manager.Value("i", False)
-        process_permutations_single(n, possible_vals, row_indices, col_indices, log_queue, found_solution)
+        process_permutations_single(n, possible_vals, row_indices, col_indices, log_queue, found_solution, progress_counter)
     else:
-        process_permutations_all(n, possible_vals, row_indices, col_indices, log_queue)
-
+        process_permutations_all(n, possible_vals, row_indices, col_indices, log_queue, progress_counter)
     log_queue.put("DONE")
     log_process.close()
     log_process.join()
-
-    # Convert solutions to JSON format
-    solutions = []
     for solution_str in log_queue.solutions:
-        # Parse the solution string format: "canonical_p h_product v_product"
         parts = solution_str.split(' ', 2)
         if len(parts) == 3:
             canonical_p_str, h_str, v_str = parts
             try:
-                # Convert string representations to actual Python objects
                 grid = eval(canonical_p_str)
                 h_products = eval(h_str)
                 v_products = eval(v_str)
@@ -146,14 +165,15 @@ def find_grids_n(n, single_solution=False, session_file=None):
                 print(f"Warning: Could not parse solution string: {solution_str}")
                 print(f"Error: {e}")
                 continue
-
-    execution_time = time() - n_start_time
-    
-    # Don't save JSON output here if using session file
+    stop_flag.value = 1
+    progress_proc.join()
+    execution_time = time.time() - n_start_time
     if not session_file:
         save_json_output(n, solutions, execution_time)
-    
     print(f"\nFinished executing for: {n}, Execution Time: {format_time(execution_time)}")
+    print(f"Total permutations checked: {progress_counter.value:,}")
+    if progress_counter.value > 0:
+        print(f"Average time per permutation: {execution_time / progress_counter.value:.6f} seconds")
     return {"n": n, "solutions": solutions, "execution_time": format_time(execution_time)}
 
 
@@ -174,7 +194,7 @@ if __name__ == "__main__":
     mode_str = "single solution" if single_solution else "all solutions"
     print(f"\nSelected mode: {mode_str}")
     
-    main_start_time = time()
+    main_start_time = time.time()
     
     # Get session file for this execution
     session_file = get_session_file()
@@ -206,7 +226,7 @@ if __name__ == "__main__":
 
     # Save all results to the session file
     if all_results:
-        total_execution_time = time() - main_start_time
+        total_execution_time = time.time() - main_start_time
         save_json_output("multiple", all_results, total_execution_time, session_file)
     
-    print(f"\n\nTotal Execution Time: {format_time(time() - main_start_time)}") 
+    print(f"\n\nTotal Execution Time: {format_time(time.time() - main_start_time)}") 
