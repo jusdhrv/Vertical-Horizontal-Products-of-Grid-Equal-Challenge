@@ -133,5 +133,3 @@ This codebase is designed to solve the "Vertical Horizontal Products of Grid Equ
 | Reference Outputs/  | Store reference outputs for validation                     |
 
 ---
-
-# End of TOOLS.md
