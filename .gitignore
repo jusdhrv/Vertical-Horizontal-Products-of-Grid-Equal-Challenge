@@ -1,5 +1,6 @@
 venv/*
 Data/*
+Analysis/*
 __pycache__/*
 *.pyc
 *.pyo
